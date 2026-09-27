@@ -4,25 +4,38 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Time Blocker</title>
+    <meta name="theme-color" content="#eef2ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#182420" media="(prefers-color-scheme: dark)" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500;1,9..144,600&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="app">
+    <div class="page">
       <header class="app-header">
-        <h1>Time Blocker</h1>
-        <nav class="main-tabs">
-          <button class="main-tab active" data-tab="timeblock">Time Blocking</button>
-          <button class="main-tab" data-tab="lists">Lists</button>
+        <h1 class="wordmark">Time Blocker</h1>
+        <nav class="main-tabs" aria-label="Sections">
+          <button class="tab-index active" data-tab="timeblock">Today</button>
+          <button class="tab-index" data-tab="lists">Lists</button>
         </nav>
       </header>
 
       <main class="app-main">
         <!-- Time Blocking tab -->
         <section id="tab-timeblock" class="tab-panel active">
-          <div class="timeblock-toolbar">
-            <input type="date" id="date-picker" />
-            <span class="hint">Click and drag on the grid to create a block</span>
+          <div class="dateline-row">
+            <h2 class="dateline" id="dateline">Today</h2>
+            <label class="change-day">
+              change day
+              <input type="date" id="date-picker" />
+            </label>
           </div>
+          <p class="hint">Drag down the ruler to pencil in a block.</p>
+
           <div class="timeblock-grid-wrap">
             <div class="timeblock-grid" id="timeblock-grid"></div>
           </div>
@@ -30,57 +43,65 @@
 
         <!-- Lists tab -->
         <section id="tab-lists" class="tab-panel">
-          <div class="sub-tabs">
-            <button class="sub-tab active" data-subtab="lists">Lists</button>
-            <button class="sub-tab" data-subtab="matrix">Priority Matrix</button>
-          </div>
+          <nav class="sub-tabs" aria-label="Lists views">
+            <button class="tab-index active" data-subtab="lists">Lists</button>
+            <button class="tab-index" data-subtab="matrix">Matrix</button>
+          </nav>
 
           <div id="subtab-lists" class="subtab-panel active">
             <div class="lists-body">
               <aside class="list-sidebar">
-                <div class="new-list-row">
-                  <input type="text" id="new-list-input" placeholder="New list name" />
-                  <button id="add-list-btn">+</button>
-                </div>
                 <ul class="list-names" id="list-names"></ul>
+                <div class="new-list-row">
+                  <label class="visually-hidden" for="new-list-input">New list name</label>
+                  <input type="text" id="new-list-input" placeholder="Start a new list…" />
+                  <button id="add-list-btn" aria-label="Add list">+</button>
+                </div>
               </aside>
               <section class="list-detail" id="list-detail"></section>
             </div>
           </div>
 
           <div id="subtab-matrix" class="subtab-panel">
-            <div id="matrix-empty-hint" class="empty-hint" style="display:none">
-              No tasks yet. Add tasks in the Lists tab, then mark them Important /
-              Urgent — they'll appear in the matching quadrant.
+            <div id="matrix-empty-hint" class="empty-hint" style="display: none">
+              Nothing to sort yet. Add tasks in Lists, mark a few Important or
+              Urgent, and they’ll land here on their own.
             </div>
-            <div class="matrix-grid">
-              <div class="quadrant q-do">
-                <div class="quadrant-header">
-                  <h3>Do First</h3>
-                  <span>Important &amp; Urgent</span>
+            <div class="matrix-chart">
+              <span class="axis-label axis-top">Urgent</span>
+              <span class="axis-label axis-bottom">Not urgent</span>
+              <span class="axis-label axis-left">Important</span>
+              <span class="axis-label axis-right">Not important</span>
+
+              <div class="matrix-grid">
+                <div class="quadrant q-do">
+                  <div class="quadrant-header">
+                    <h3>Do now</h3>
+                    <span>Important, urgent</span>
+                  </div>
+                  <ul class="quadrant-tasks" id="quadrant-do"></ul>
                 </div>
-                <ul class="quadrant-tasks" id="quadrant-do"></ul>
-              </div>
-              <div class="quadrant q-schedule">
-                <div class="quadrant-header">
-                  <h3>Schedule</h3>
-                  <span>Important &amp; Not Urgent</span>
+                <div class="quadrant q-schedule">
+                  <div class="quadrant-header">
+                    <h3>Pencil in</h3>
+                    <span>Important, not urgent</span>
+                  </div>
+                  <ul class="quadrant-tasks" id="quadrant-schedule"></ul>
                 </div>
-                <ul class="quadrant-tasks" id="quadrant-schedule"></ul>
-              </div>
-              <div class="quadrant q-delegate">
-                <div class="quadrant-header">
-                  <h3>Delegate</h3>
-                  <span>Not Important &amp; Urgent</span>
+                <div class="quadrant q-delegate">
+                  <div class="quadrant-header">
+                    <h3>Hand off</h3>
+                    <span>Urgent, not important</span>
+                  </div>
+                  <ul class="quadrant-tasks" id="quadrant-delegate"></ul>
                 </div>
-                <ul class="quadrant-tasks" id="quadrant-delegate"></ul>
-              </div>
-              <div class="quadrant q-delete">
-                <div class="quadrant-header">
-                  <h3>Eliminate</h3>
-                  <span>Not Important &amp; Not Urgent</span>
+                <div class="quadrant q-delete">
+                  <div class="quadrant-header">
+                    <h3>Cross out</h3>
+                    <span>Neither</span>
+                  </div>
+                  <ul class="quadrant-tasks" id="quadrant-delete"></ul>
                 </div>
-                <ul class="quadrant-tasks" id="quadrant-delete"></ul>
               </div>
             </div>
           </div>
@@ -89,14 +110,15 @@
     </div>
 
     <!-- Time block edit modal -->
-    <div id="block-modal" class="modal-backdrop" style="display:none">
+    <div id="block-modal" class="modal-backdrop" style="display: none">
       <div class="modal">
         <h3 id="block-modal-time"></h3>
+        <label class="visually-hidden" for="block-title-input">Block title</label>
         <input type="text" id="block-title-input" placeholder="What are you working on?" />
-        <div class="color-row" id="block-color-row"></div>
+        <div class="color-row" id="block-color-row" role="group" aria-label="Block color"></div>
         <div class="modal-actions">
           <button class="danger" id="block-delete-btn">Delete</button>
-          <button id="block-done-btn">Done</button>
+          <button class="primary" id="block-done-btn">Done</button>
         </div>
       </div>
     </div>

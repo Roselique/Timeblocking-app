@@ -45,18 +45,22 @@
 
   // ---------- tabs ----------
 
-  document.querySelectorAll('.main-tab').forEach((btn) => {
+  document.querySelectorAll('.main-tabs .tab-index').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.main-tab').forEach((b) => b.classList.remove('active'));
+      document
+        .querySelectorAll('.main-tabs .tab-index')
+        .forEach((b) => b.classList.remove('active'));
       document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     });
   });
 
-  document.querySelectorAll('.sub-tab').forEach((btn) => {
+  document.querySelectorAll('.sub-tabs .tab-index').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.sub-tab').forEach((b) => b.classList.remove('active'));
+      document
+        .querySelectorAll('.sub-tabs .tab-index')
+        .forEach((b) => b.classList.remove('active'));
       document.querySelectorAll('.subtab-panel').forEach((p) => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('subtab-' + btn.dataset.subtab).classList.add('active');
@@ -73,14 +77,27 @@
   const SLOTS_PER_HOUR = 2; // 30-min slots
   const TOTAL_SLOTS = (END_HOUR - START_HOUR) * SLOTS_PER_HOUR;
   const SLOT_HEIGHT = 28;
-  const COLORS = ['#6c8cff', '#ff8a65', '#66bb6a', '#ba68c8', '#ffca28', '#4dd0e1'];
+  const COLORS = ['#f4d35e', '#f2836b', '#6fb3d2', '#8fbc74', '#b28dd0', '#f0a04b'];
+  const COLOR_NAMES = ['Amber', 'Coral', 'Sky', 'Sage', 'Lilac', 'Tangerine'];
 
   const datePicker = document.getElementById('date-picker');
   datePicker.value = todayIso();
   const grid = document.getElementById('timeblock-grid');
+  const datelineEl = document.getElementById('dateline');
 
   let dragStart = null;
   let dragEnd = null;
+  let justCreatedId = null;
+
+  function renderDateline() {
+    const [y, m, d] = datePicker.value.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    datelineEl.textContent = date.toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    });
+  }
 
   function slotLabel(slot) {
     const totalMinutes = START_HOUR * 60 + slot * 30;
@@ -127,10 +144,15 @@
 
     dayBlocks().forEach((b) => {
       const el = document.createElement('div');
-      el.className = 'time-block';
+      el.className = 'time-block' + (b.id === justCreatedId ? ' settle' : '');
       el.style.top = b.startSlot * SLOT_HEIGHT + 'px';
       el.style.height = (b.endSlot - b.startSlot) * SLOT_HEIGHT - 2 + 'px';
       el.style.background = b.color;
+      if (b.id === justCreatedId) {
+        el.addEventListener('animationend', () => el.classList.remove('settle'), {
+          once: true,
+        });
+      }
 
       const time = document.createElement('span');
       time.className = 'time-block-time';
@@ -145,6 +167,8 @@
       el.addEventListener('click', () => openBlockModal(b.id));
       grid.appendChild(el);
     });
+
+    justCreatedId = null;
   }
 
   function slotAtEvent(e) {
@@ -195,11 +219,15 @@
     persistBlocks();
     dragStart = null;
     dragEnd = null;
+    justCreatedId = block.id;
     renderGrid();
     openBlockModal(block.id);
   });
 
-  datePicker.addEventListener('change', renderGrid);
+  datePicker.addEventListener('change', () => {
+    renderDateline();
+    renderGrid();
+  });
 
   // block modal
 
@@ -211,12 +239,14 @@
   const blockDoneBtn = document.getElementById('block-done-btn');
   let editingBlockId = null;
 
-  COLORS.forEach((c) => {
+  COLORS.forEach((c, i) => {
     const swatch = document.createElement('button');
     swatch.type = 'button';
     swatch.className = 'color-swatch';
     swatch.style.background = c;
     swatch.dataset.color = c;
+    swatch.setAttribute('aria-label', COLOR_NAMES[i]);
+    swatch.title = COLOR_NAMES[i];
     swatch.addEventListener('click', () => {
       const b = blocks.find((x) => x.id === editingBlockId);
       if (!b) return;
@@ -230,7 +260,9 @@
 
   function updateColorSelection(color) {
     Array.from(blockColorRow.children).forEach((swatch) => {
-      swatch.classList.toggle('selected', swatch.dataset.color === color);
+      const isSelected = swatch.dataset.color === color;
+      swatch.classList.toggle('selected', isSelected);
+      swatch.setAttribute('aria-pressed', String(isSelected));
     });
   }
 
@@ -299,6 +331,13 @@
   });
 
   function deleteList(id) {
+    const list = lists.find((l) => l.id === id);
+    if (list && list.tasks.length > 0) {
+      const ok = window.confirm(
+        'Delete "' + list.name + '" and its ' + list.tasks.length + ' task(s)?'
+      );
+      if (!ok) return;
+    }
     lists = lists.filter((l) => l.id !== id);
     if (activeListId === id) activeListId = lists[0] ? lists[0].id : null;
     persistLists();
@@ -315,13 +354,22 @@
       const li = document.createElement('li');
       li.className = l.id === activeListId ? 'active' : '';
 
-      const span = document.createElement('span');
-      span.textContent = l.name;
-      li.appendChild(span);
+      const selectBtn = document.createElement('button');
+      selectBtn.type = 'button';
+      selectBtn.className = 'list-select';
+      selectBtn.textContent = l.name;
+      selectBtn.setAttribute('aria-pressed', String(l.id === activeListId));
+      selectBtn.addEventListener('click', () => {
+        activeListId = l.id;
+        renderLists();
+      });
+      li.appendChild(selectBtn);
 
       const delBtn = document.createElement('button');
+      delBtn.type = 'button';
       delBtn.className = 'icon-btn';
       delBtn.title = 'Delete list';
+      delBtn.setAttribute('aria-label', 'Delete "' + l.name + '"');
       delBtn.textContent = '×';
       delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -329,13 +377,26 @@
       });
       li.appendChild(delBtn);
 
-      li.addEventListener('click', () => {
-        activeListId = l.id;
-        renderLists();
-      });
-
       listNamesEl.appendChild(li);
     });
+  }
+
+  function makeStampButton(task, field, glyph, label) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'stamp stamp-' + field;
+    btn.setAttribute('aria-pressed', String(!!task[field]));
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+    btn.textContent = glyph;
+    btn.classList.toggle('is-set', !!task[field]);
+    btn.addEventListener('click', () => {
+      task[field] = !task[field];
+      persistLists();
+      btn.classList.toggle('is-set', task[field]);
+      btn.setAttribute('aria-pressed', String(task[field]));
+    });
+    return btn;
   }
 
   function renderListDetail() {
@@ -353,6 +414,7 @@
     const titleInput = document.createElement('input');
     titleInput.className = 'list-title-input';
     titleInput.value = list.name;
+    titleInput.setAttribute('aria-label', 'List name');
     titleInput.addEventListener('input', () => {
       list.name = titleInput.value;
       persistLists();
@@ -364,9 +426,10 @@
     addRow.className = 'add-task-row';
     const taskInput = document.createElement('input');
     taskInput.type = 'text';
-    taskInput.placeholder = 'Add a task...';
+    taskInput.placeholder = 'Add a task…';
+    taskInput.setAttribute('aria-label', 'New task');
     const addBtn = document.createElement('button');
-    addBtn.textContent = 'Add';
+    addBtn.textContent = 'Add task';
     function addTask() {
       if (!taskInput.value.trim()) return;
       list.tasks.push({
@@ -405,6 +468,7 @@
       const doneCb = document.createElement('input');
       doneCb.type = 'checkbox';
       doneCb.checked = t.done;
+      doneCb.setAttribute('aria-label', 'Mark "' + t.text + '" done');
       doneCb.addEventListener('change', () => {
         t.done = doneCb.checked;
         persistLists();
@@ -417,35 +481,14 @@
       textSpan.textContent = t.text;
       li.appendChild(textSpan);
 
-      const importantLabel = document.createElement('label');
-      importantLabel.className = 'flag important';
-      const importantCb = document.createElement('input');
-      importantCb.type = 'checkbox';
-      importantCb.checked = t.important;
-      importantCb.addEventListener('change', () => {
-        t.important = importantCb.checked;
-        persistLists();
-      });
-      importantLabel.appendChild(importantCb);
-      importantLabel.appendChild(document.createTextNode('Important'));
-      li.appendChild(importantLabel);
-
-      const urgentLabel = document.createElement('label');
-      urgentLabel.className = 'flag urgent';
-      const urgentCb = document.createElement('input');
-      urgentCb.type = 'checkbox';
-      urgentCb.checked = t.urgent;
-      urgentCb.addEventListener('change', () => {
-        t.urgent = urgentCb.checked;
-        persistLists();
-      });
-      urgentLabel.appendChild(urgentCb);
-      urgentLabel.appendChild(document.createTextNode('Urgent'));
-      li.appendChild(urgentLabel);
+      li.appendChild(makeStampButton(t, 'important', '★', 'Important'));
+      li.appendChild(makeStampButton(t, 'urgent', '●', 'Urgent'));
 
       const delBtn = document.createElement('button');
       delBtn.className = 'icon-btn';
       delBtn.textContent = '×';
+      delBtn.setAttribute('aria-label', 'Delete "' + t.text + '"');
+      delBtn.title = 'Delete task';
       delBtn.addEventListener('click', () => {
         list.tasks = list.tasks.filter((x) => x.id !== t.id);
         persistLists();
@@ -517,6 +560,7 @@
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = t.done;
+        cb.setAttribute('aria-label', 'Mark "' + t.text + '" done');
         cb.addEventListener('change', () => {
           const list = lists.find((l) => l.id === t.listId);
           const task = list && list.tasks.find((x) => x.id === t.id);
@@ -546,6 +590,7 @@
 
   // ---------- init ----------
 
+  renderDateline();
   renderGrid();
   renderLists();
   renderMatrix();
