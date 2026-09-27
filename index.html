@@ -29,12 +29,15 @@
         <section id="tab-timeblock" class="tab-panel active">
           <div class="dateline-row">
             <h2 class="dateline" id="dateline">Today</h2>
-            <label class="change-day">
-              change day
-              <input type="date" id="date-picker" />
-            </label>
+            <div class="dateline-actions">
+              <label class="change-day">
+                change day
+                <input type="date" id="date-picker" />
+              </label>
+              <button type="button" id="new-block-btn">+ New block</button>
+            </div>
           </div>
-          <p class="hint">Drag down the ruler to pencil in a block.</p>
+          <p class="hint">Drag down the ruler, or set exact times on a block.</p>
 
           <div class="timeblock-grid-wrap">
             <div class="timeblock-grid" id="timeblock-grid"></div>
@@ -112,7 +115,18 @@
     <!-- Time block edit modal -->
     <div id="block-modal" class="modal-backdrop" style="display: none">
       <div class="modal">
-        <h3 id="block-modal-time"></h3>
+        <div class="time-range-row">
+          <label class="time-field">
+            <span class="field-label">Start</span>
+            <input type="time" id="block-start-input" />
+          </label>
+          <span class="time-range-sep" aria-hidden="true">–</span>
+          <label class="time-field">
+            <span class="field-label">End</span>
+            <input type="time" id="block-end-input" />
+          </label>
+        </div>
+        <p class="modal-error" id="block-time-error" aria-live="polite" style="display: none"></p>
         <label class="visually-hidden" for="block-title-input">Block title</label>
         <input type="text" id="block-title-input" placeholder="What are you working on?" />
         <div class="color-row" id="block-color-row" role="group" aria-label="Block color"></div>

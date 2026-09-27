@@ -239,6 +239,25 @@ input,
   padding: 2px 0;
 }
 
+.dateline-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+#new-block-btn {
+  border: 1px solid var(--paper-line-strong);
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 5px 12px;
+  font-size: 12.5px;
+}
+
+#new-block-btn:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
 .hint {
   color: var(--ink-faint);
   font-size: 13px;
@@ -357,6 +376,40 @@ input,
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.time-range-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.time-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.field-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+
+.time-range-sep {
+  color: var(--ink-faint);
+  padding-bottom: 9px;
+}
+
+.time-field input[type='time'] {
+  width: 100%;
+}
+
+.modal-error {
+  margin: -6px 0 0;
+  font-size: 12.5px;
+  color: var(--wax);
 }
 
 .modal h3 {

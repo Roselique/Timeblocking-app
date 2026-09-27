@@ -35,6 +35,24 @@
   let blocks = loadState('tb-blocks', []);
   let activeListId = lists[0] ? lists[0].id : null;
 
+  // Migrate blocks saved before manual time entry (30-min slot indices -> minutes).
+  const OLD_DAY_START = 6 * 60;
+  const OLD_SLOT_MINUTES = 30;
+  let migratedBlocks = false;
+  blocks = blocks.map((b) => {
+    if (b.startMin != null && b.endMin != null) return b;
+    migratedBlocks = true;
+    return {
+      id: b.id,
+      date: b.date,
+      title: b.title,
+      color: b.color,
+      startMin: OLD_DAY_START + b.startSlot * OLD_SLOT_MINUTES,
+      endMin: OLD_DAY_START + b.endSlot * OLD_SLOT_MINUTES,
+    };
+  });
+  if (migratedBlocks) saveState('tb-blocks', blocks);
+
   function persistLists() {
     saveState('tb-lists', lists);
   }
@@ -74,9 +92,12 @@
 
   const START_HOUR = 6; // 6am
   const END_HOUR = 23; // 11pm
-  const SLOTS_PER_HOUR = 2; // 30-min slots
-  const TOTAL_SLOTS = (END_HOUR - START_HOUR) * SLOTS_PER_HOUR;
-  const SLOT_HEIGHT = 28;
+  const DAY_START = START_HOUR * 60; // minutes since midnight
+  const DAY_END = END_HOUR * 60;
+  const SLOT_MINUTES = 30; // drag/ruler snap unit
+  const TOTAL_SLOTS = (DAY_END - DAY_START) / SLOT_MINUTES;
+  const SLOT_HEIGHT = 28; // px per slot (per SLOT_MINUTES)
+  const PX_PER_MIN = SLOT_HEIGHT / SLOT_MINUTES;
   const COLORS = ['#f4d35e', '#f2836b', '#6fb3d2', '#8fbc74', '#b28dd0', '#f0a04b'];
   const COLOR_NAMES = ['Amber', 'Coral', 'Sky', 'Sage', 'Lilac', 'Tangerine'];
 
@@ -99,21 +120,58 @@
     });
   }
 
-  function slotLabel(slot) {
-    const totalMinutes = START_HOUR * 60 + slot * 30;
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
+  // Minutes since midnight -> "6:00 AM" / "9:15 AM"
+  function timeLabel(minutes) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
     const period = h >= 12 ? 'PM' : 'AM';
     const h12 = h % 12 === 0 ? 12 : h % 12;
     return h12 + ':' + String(m).padStart(2, '0') + ' ' + period;
+  }
+
+  // Minutes since midnight -> "06:00" for <input type="time">
+  function toInputValue(minutes) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+
+  // "06:00" -> exact minutes since midnight, no rounding
+  function fromInputValue(value) {
+    const [h, m] = value.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function minutesForSlot(slot) {
+    return DAY_START + slot * SLOT_MINUTES;
   }
 
   function dayBlocks() {
     return blocks.filter((b) => b.date === datePicker.value);
   }
 
+  function isRangeFree(startMin, endMin, excludeId) {
+    return !dayBlocks().some(
+      (b) => b.id !== excludeId && startMin < b.endMin && endMin > b.startMin
+    );
+  }
+
   function slotIsOccupied(slot) {
-    return dayBlocks().some((b) => slot >= b.startSlot && slot < b.endSlot);
+    return !isRangeFree(minutesForSlot(slot), minutesForSlot(slot + 1), null);
+  }
+
+  function findFreeRange(sizeSlots) {
+    for (let start = 0; start <= TOTAL_SLOTS - sizeSlots; start++) {
+      let fits = true;
+      for (let slot = start; slot < start + sizeSlots; slot++) {
+        if (slotIsOccupied(slot)) {
+          fits = false;
+          break;
+        }
+      }
+      if (fits) return { startMin: minutesForSlot(start), endMin: minutesForSlot(start + sizeSlots) };
+    }
+    return null;
   }
 
   function renderGrid() {
@@ -121,14 +179,14 @@
     grid.style.height = TOTAL_SLOTS * SLOT_HEIGHT + 'px';
 
     for (let slot = 0; slot < TOTAL_SLOTS; slot++) {
-      const isHourStart = slot % SLOTS_PER_HOUR === 0;
+      const isHourStart = minutesForSlot(slot) % 60 === 0;
       const el = document.createElement('div');
       el.className = 'slot' + (isHourStart ? ' hour-start' : '');
       el.dataset.slot = String(slot);
       if (isHourStart) {
         const label = document.createElement('span');
         label.className = 'slot-label';
-        label.textContent = slotLabel(slot);
+        label.textContent = timeLabel(minutesForSlot(slot));
         el.appendChild(label);
       }
       if (
@@ -145,8 +203,8 @@
     dayBlocks().forEach((b) => {
       const el = document.createElement('div');
       el.className = 'time-block' + (b.id === justCreatedId ? ' settle' : '');
-      el.style.top = b.startSlot * SLOT_HEIGHT + 'px';
-      el.style.height = (b.endSlot - b.startSlot) * SLOT_HEIGHT - 2 + 'px';
+      el.style.top = (b.startMin - DAY_START) * PX_PER_MIN + 'px';
+      el.style.height = (b.endMin - b.startMin) * PX_PER_MIN - 2 + 'px';
       el.style.background = b.color;
       if (b.id === justCreatedId) {
         el.addEventListener('animationend', () => el.classList.remove('settle'), {
@@ -156,7 +214,7 @@
 
       const time = document.createElement('span');
       time.className = 'time-block-time';
-      time.textContent = slotLabel(b.startSlot) + ' – ' + slotLabel(b.endSlot);
+      time.textContent = timeLabel(b.startMin) + ' – ' + timeLabel(b.endMin);
 
       const title = document.createElement('span');
       title.className = 'time-block-title';
@@ -210,8 +268,8 @@
     const block = {
       id: uid(),
       date: datePicker.value,
-      startSlot,
-      endSlot,
+      startMin: minutesForSlot(startSlot),
+      endMin: minutesForSlot(endSlot),
       title: '',
       color,
     };
@@ -232,11 +290,14 @@
   // block modal
 
   const blockModal = document.getElementById('block-modal');
-  const blockModalTime = document.getElementById('block-modal-time');
+  const blockStartInput = document.getElementById('block-start-input');
+  const blockEndInput = document.getElementById('block-end-input');
+  const blockTimeError = document.getElementById('block-time-error');
   const blockTitleInput = document.getElementById('block-title-input');
   const blockColorRow = document.getElementById('block-color-row');
   const blockDeleteBtn = document.getElementById('block-delete-btn');
   const blockDoneBtn = document.getElementById('block-done-btn');
+  const newBlockBtn = document.getElementById('new-block-btn');
   let editingBlockId = null;
 
   COLORS.forEach((c, i) => {
@@ -266,11 +327,22 @@
     });
   }
 
+  function showTimeError(message) {
+    blockTimeError.textContent = message;
+    blockTimeError.style.display = message ? 'block' : 'none';
+  }
+
   function openBlockModal(blockId) {
     editingBlockId = blockId;
     const b = blocks.find((x) => x.id === blockId);
     if (!b) return;
-    blockModalTime.textContent = slotLabel(b.startSlot) + ' – ' + slotLabel(b.endSlot);
+    blockStartInput.value = toInputValue(b.startMin);
+    blockEndInput.value = toInputValue(b.endMin);
+    blockStartInput.min = toInputValue(DAY_START);
+    blockStartInput.max = toInputValue(DAY_END);
+    blockEndInput.min = toInputValue(DAY_START);
+    blockEndInput.max = toInputValue(DAY_END);
+    showTimeError('');
     blockTitleInput.value = b.title;
     updateColorSelection(b.color);
     blockModal.style.display = 'flex';
@@ -282,6 +354,58 @@
     editingBlockId = null;
     renderGrid();
   }
+
+  function applyTimeChange() {
+    const b = blocks.find((x) => x.id === editingBlockId);
+    if (!b) return;
+
+    if (!blockStartInput.value || !blockEndInput.value) return;
+
+    let newStart = fromInputValue(blockStartInput.value);
+    let newEnd = fromInputValue(blockEndInput.value);
+    newStart = Math.max(DAY_START, Math.min(newStart, DAY_END - 1));
+    newEnd = Math.max(DAY_START + 1, Math.min(newEnd, DAY_END));
+
+    if (newEnd <= newStart) {
+      showTimeError('End time must be after the start time.');
+      return;
+    }
+
+    if (!isRangeFree(newStart, newEnd, b.id)) {
+      showTimeError('That overlaps another block.');
+      return;
+    }
+
+    showTimeError('');
+    b.startMin = newStart;
+    b.endMin = newEnd;
+    persistBlocks();
+    renderGrid();
+  }
+
+  blockStartInput.addEventListener('change', applyTimeChange);
+  blockEndInput.addEventListener('change', applyTimeChange);
+
+  newBlockBtn.addEventListener('click', () => {
+    const range = findFreeRange(2) || {
+      startMin: DAY_START,
+      endMin: Math.min(DAY_START + 60, DAY_END),
+    };
+    const color = COLORS[blocks.length % COLORS.length];
+    const block = {
+      id: uid(),
+      date: datePicker.value,
+      startMin: range.startMin,
+      endMin: range.endMin,
+      title: '',
+      color,
+    };
+    blocks.push(block);
+    persistBlocks();
+    justCreatedId = block.id;
+    renderGrid();
+    openBlockModal(block.id);
+  });
 
   blockTitleInput.addEventListener('input', () => {
     const b = blocks.find((x) => x.id === editingBlockId);
