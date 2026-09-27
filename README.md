@@ -1,32 +1,22 @@
-# React + TypeScript + Vite
+# Time Blocker
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A simple time blocking app with a Lists tab and an Eisenhower priority matrix.
+Plain HTML/CSS/JS — no build step, no Node.js required.
 
-Currently, two official plugins are available:
+## Running it
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Just open `index.html` in your browser (double-click it, or right-click →
+Open with → your browser).
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Time Blocking**: click and drag on the daily grid to create time blocks,
+  name them, and pick a color. Switch dates with the date picker.
+- **Lists**: create multiple lists and add tasks to each, flagging tasks as
+  Important and/or Urgent.
+- **Priority Matrix**: a sub-tab under Lists that automatically sorts every
+  task from every list into the four Eisenhower quadrants — Do First,
+  Schedule, Delegate, Eliminate — based on its Important/Urgent flags.
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+All data is saved to your browser's local storage, so it persists between
+visits on the same browser/device.

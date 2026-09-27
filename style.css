@@ -1,3 +1,45 @@
+:root {
+  --text: #2c2c34;
+  --muted: #7a7a85;
+  --bg: #f7f7fa;
+  --surface: #ffffff;
+  --border: #e2e2e8;
+  --border-faint: #eeeef2;
+  --accent: #6c8cff;
+  --accent-faint: rgba(108, 140, 255, 0.15);
+
+  font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e5e5ea;
+    --muted: #9096a3;
+    --bg: #14151a;
+    --surface: #1c1e26;
+    --border: #2c2e38;
+    --border-faint: #24252d;
+    --accent: #7c9bff;
+    --accent-faint: rgba(124, 155, 255, 0.18);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
 .app {
   max-width: 1100px;
   margin: 0 auto;
@@ -47,6 +89,22 @@
 
 .app-main {
   padding-top: 16px;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+.subtab-panel {
+  display: none;
+}
+
+.subtab-panel.active {
+  display: block;
 }
 
 /* Timeblocking */
@@ -183,9 +241,11 @@
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
+  padding: 0;
 }
 
-.color-swatch:hover {
+.color-swatch:hover,
+.color-swatch.selected {
   border-color: var(--text);
 }
 
@@ -353,10 +413,6 @@
   font-size: 12px;
   color: var(--muted);
   white-space: nowrap;
-}
-
-.flag.important input:checked + * {
-  color: inherit;
 }
 
 .empty-hint {

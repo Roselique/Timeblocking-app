@@ -2,12 +2,105 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Time Blocker</title>
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div class="app">
+      <header class="app-header">
+        <h1>Time Blocker</h1>
+        <nav class="main-tabs">
+          <button class="main-tab active" data-tab="timeblock">Time Blocking</button>
+          <button class="main-tab" data-tab="lists">Lists</button>
+        </nav>
+      </header>
+
+      <main class="app-main">
+        <!-- Time Blocking tab -->
+        <section id="tab-timeblock" class="tab-panel active">
+          <div class="timeblock-toolbar">
+            <input type="date" id="date-picker" />
+            <span class="hint">Click and drag on the grid to create a block</span>
+          </div>
+          <div class="timeblock-grid-wrap">
+            <div class="timeblock-grid" id="timeblock-grid"></div>
+          </div>
+        </section>
+
+        <!-- Lists tab -->
+        <section id="tab-lists" class="tab-panel">
+          <div class="sub-tabs">
+            <button class="sub-tab active" data-subtab="lists">Lists</button>
+            <button class="sub-tab" data-subtab="matrix">Priority Matrix</button>
+          </div>
+
+          <div id="subtab-lists" class="subtab-panel active">
+            <div class="lists-body">
+              <aside class="list-sidebar">
+                <div class="new-list-row">
+                  <input type="text" id="new-list-input" placeholder="New list name" />
+                  <button id="add-list-btn">+</button>
+                </div>
+                <ul class="list-names" id="list-names"></ul>
+              </aside>
+              <section class="list-detail" id="list-detail"></section>
+            </div>
+          </div>
+
+          <div id="subtab-matrix" class="subtab-panel">
+            <div id="matrix-empty-hint" class="empty-hint" style="display:none">
+              No tasks yet. Add tasks in the Lists tab, then mark them Important /
+              Urgent — they'll appear in the matching quadrant.
+            </div>
+            <div class="matrix-grid">
+              <div class="quadrant q-do">
+                <div class="quadrant-header">
+                  <h3>Do First</h3>
+                  <span>Important &amp; Urgent</span>
+                </div>
+                <ul class="quadrant-tasks" id="quadrant-do"></ul>
+              </div>
+              <div class="quadrant q-schedule">
+                <div class="quadrant-header">
+                  <h3>Schedule</h3>
+                  <span>Important &amp; Not Urgent</span>
+                </div>
+                <ul class="quadrant-tasks" id="quadrant-schedule"></ul>
+              </div>
+              <div class="quadrant q-delegate">
+                <div class="quadrant-header">
+                  <h3>Delegate</h3>
+                  <span>Not Important &amp; Urgent</span>
+                </div>
+                <ul class="quadrant-tasks" id="quadrant-delegate"></ul>
+              </div>
+              <div class="quadrant q-delete">
+                <div class="quadrant-header">
+                  <h3>Eliminate</h3>
+                  <span>Not Important &amp; Not Urgent</span>
+                </div>
+                <ul class="quadrant-tasks" id="quadrant-delete"></ul>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Time block edit modal -->
+    <div id="block-modal" class="modal-backdrop" style="display:none">
+      <div class="modal">
+        <h3 id="block-modal-time"></h3>
+        <input type="text" id="block-title-input" placeholder="What are you working on?" />
+        <div class="color-row" id="block-color-row"></div>
+        <div class="modal-actions">
+          <button class="danger" id="block-delete-btn">Delete</button>
+          <button id="block-done-btn">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
   </body>
 </html>
