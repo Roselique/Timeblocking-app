@@ -245,6 +245,31 @@ input,
   gap: 18px;
 }
 
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.day-nav button {
+  border: 1px solid var(--paper-line-strong);
+  background: transparent;
+  color: var(--ink-soft);
+  width: 24px;
+  height: 24px;
+  line-height: 1;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.day-nav button:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
 #new-block-btn {
   border: 1px solid var(--paper-line-strong);
   background: transparent;
@@ -439,15 +464,17 @@ input,
 
 .color-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
 .color-swatch {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 2px solid transparent;
   padding: 0;
+  flex: none;
 }
 
 .color-swatch:hover {
@@ -512,6 +539,9 @@ input,
 
 .list-select {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   text-align: left;
   border: none;
   background: transparent;
@@ -523,6 +553,13 @@ input,
 .list-names li.active .list-select {
   color: var(--ink);
   font-weight: 600;
+}
+
+.list-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
 }
 
 .list-names li.active {
@@ -820,9 +857,19 @@ input,
 
 .source-list {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 10.5px;
   color: var(--ink-faint);
   white-space: nowrap;
+}
+
+.source-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
 }
 
 @media (max-width: 720px) {

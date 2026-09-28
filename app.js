@@ -29,11 +29,39 @@
     return new Date().toISOString().slice(0, 10);
   }
 
+  // ---------- shared color palette (time blocks + lists) ----------
+
+  const PALETTE = [
+    { hex: '#f4d35e', name: 'Amber' },
+    { hex: '#f2836b', name: 'Coral' },
+    { hex: '#6fb3d2', name: 'Sky' },
+    { hex: '#8fbc74', name: 'Sage' },
+    { hex: '#b28dd0', name: 'Lilac' },
+    { hex: '#f0a04b', name: 'Tangerine' },
+    { hex: '#e0688c', name: 'Rose' },
+    { hex: '#5fb8a4', name: 'Teal' },
+    { hex: '#c9a86a', name: 'Ochre' },
+    { hex: '#8f9fd6', name: 'Periwinkle' },
+    { hex: '#d4c05e', name: 'Mustard' },
+    { hex: '#a1a8b5', name: 'Slate' },
+  ];
+  const COLORS = PALETTE.map((p) => p.hex);
+  const COLOR_NAMES = PALETTE.map((p) => p.name);
+
   // ---------- state ----------
 
   let lists = loadState('tb-lists', [{ id: 'default', name: 'My Tasks', tasks: [] }]);
   let blocks = loadState('tb-blocks', []);
   let activeListId = lists[0] ? lists[0].id : null;
+
+  // Assign a color to any list saved before list colors existed.
+  let migratedLists = false;
+  lists = lists.map((l, i) => {
+    if (l.color) return l;
+    migratedLists = true;
+    return { ...l, color: COLORS[i % COLORS.length] };
+  });
+  if (migratedLists) saveState('tb-lists', lists);
 
   // Migrate blocks saved before manual time entry (30-min slot indices -> minutes).
   const OLD_DAY_START = 6 * 60;
@@ -98,8 +126,6 @@
   const TOTAL_SLOTS = (DAY_END - DAY_START) / SLOT_MINUTES;
   const SLOT_HEIGHT = 28; // px per slot (per SLOT_MINUTES)
   const PX_PER_MIN = SLOT_HEIGHT / SLOT_MINUTES;
-  const COLORS = ['#f4d35e', '#f2836b', '#6fb3d2', '#8fbc74', '#b28dd0', '#f0a04b'];
-  const COLOR_NAMES = ['Amber', 'Coral', 'Sky', 'Sage', 'Lilac', 'Tangerine'];
 
   const datePicker = document.getElementById('date-picker');
   datePicker.value = todayIso();
@@ -287,6 +313,24 @@
     renderGrid();
   });
 
+  function shiftDate(deltaDays) {
+    const [y, m, d] = datePicker.value.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + deltaDays);
+    const iso =
+      date.getFullYear() +
+      '-' +
+      String(date.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(date.getDate()).padStart(2, '0');
+    datePicker.value = iso;
+    renderDateline();
+    renderGrid();
+  }
+
+  document.getElementById('prev-day-btn').addEventListener('click', () => shiftDate(-1));
+  document.getElementById('next-day-btn').addEventListener('click', () => shiftDate(1));
+
   // block modal
 
   const blockModal = document.getElementById('block-modal');
@@ -441,7 +485,8 @@
 
   function addList() {
     const name = newListInput.value.trim() || 'New list';
-    const list = { id: uid(), name, tasks: [] };
+    const color = COLORS[lists.length % COLORS.length];
+    const list = { id: uid(), name, tasks: [], color };
     lists.push(list);
     activeListId = list.id;
     newListInput.value = '';
@@ -476,17 +521,29 @@
     listNamesEl.innerHTML = '';
     lists.forEach((l) => {
       const li = document.createElement('li');
-      li.className = l.id === activeListId ? 'active' : '';
+      const isActive = l.id === activeListId;
+      li.className = isActive ? 'active' : '';
+      li.style.borderBottomColor = isActive ? l.color : '';
 
       const selectBtn = document.createElement('button');
       selectBtn.type = 'button';
       selectBtn.className = 'list-select';
-      selectBtn.textContent = l.name;
-      selectBtn.setAttribute('aria-pressed', String(l.id === activeListId));
+      selectBtn.setAttribute('aria-pressed', String(isActive));
       selectBtn.addEventListener('click', () => {
         activeListId = l.id;
         renderLists();
       });
+
+      const dot = document.createElement('span');
+      dot.className = 'list-dot';
+      dot.style.background = l.color;
+      dot.setAttribute('aria-hidden', 'true');
+      selectBtn.appendChild(dot);
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = l.name;
+      selectBtn.appendChild(nameSpan);
+
       li.appendChild(selectBtn);
 
       const delBtn = document.createElement('button');
@@ -545,6 +602,35 @@
       renderListNames();
     });
     listDetailEl.appendChild(titleInput);
+
+    const listColorRow = document.createElement('div');
+    listColorRow.className = 'color-row';
+    listColorRow.setAttribute('role', 'group');
+    listColorRow.setAttribute('aria-label', 'List color');
+    COLORS.forEach((c, i) => {
+      const swatch = document.createElement('button');
+      swatch.type = 'button';
+      swatch.className = 'color-swatch';
+      swatch.style.background = c;
+      swatch.dataset.color = c;
+      swatch.setAttribute('aria-label', COLOR_NAMES[i]);
+      swatch.title = COLOR_NAMES[i];
+      const isSelected = list.color === c;
+      swatch.classList.toggle('selected', isSelected);
+      swatch.setAttribute('aria-pressed', String(isSelected));
+      swatch.addEventListener('click', () => {
+        list.color = c;
+        persistLists();
+        Array.from(listColorRow.children).forEach((sw) => {
+          const sel = sw.dataset.color === c;
+          sw.classList.toggle('selected', sel);
+          sw.setAttribute('aria-pressed', String(sel));
+        });
+        renderListNames();
+      });
+      listColorRow.appendChild(swatch);
+    });
+    listDetailEl.appendChild(listColorRow);
 
     const addRow = document.createElement('div');
     addRow.className = 'add-task-row';
@@ -704,7 +790,13 @@
 
         const sourceSpan = document.createElement('span');
         sourceSpan.className = 'source-list';
-        sourceSpan.textContent = t.listName;
+        const sourceList = lists.find((l) => l.id === t.listId);
+        const sourceDot = document.createElement('span');
+        sourceDot.className = 'source-dot';
+        sourceDot.style.background = sourceList ? sourceList.color : 'var(--ink-faint)';
+        sourceDot.setAttribute('aria-hidden', 'true');
+        sourceSpan.appendChild(sourceDot);
+        sourceSpan.appendChild(document.createTextNode(t.listName));
         li.appendChild(sourceSpan);
 
         container.appendChild(li);

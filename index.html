@@ -30,10 +30,14 @@
           <div class="dateline-row">
             <h2 class="dateline" id="dateline">Today</h2>
             <div class="dateline-actions">
-              <label class="change-day">
-                change day
-                <input type="date" id="date-picker" />
-              </label>
+              <div class="day-nav">
+                <button type="button" id="prev-day-btn" aria-label="Previous day">‹</button>
+                <label class="change-day">
+                  change day
+                  <input type="date" id="date-picker" />
+                </label>
+                <button type="button" id="next-day-btn" aria-label="Next day">›</button>
+              </div>
               <button type="button" id="new-block-btn">+ New block</button>
             </div>
           </div>
