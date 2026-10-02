@@ -492,6 +492,10 @@ input,
   border-top: 1px solid var(--paper-line);
 }
 
+.modal-actions-end {
+  justify-content: flex-end;
+}
+
 .modal-actions button {
   padding: 8px 14px;
   border: 1px solid var(--paper-line-strong);
@@ -987,14 +991,93 @@ td.is-today {
   font-size: 13px;
 }
 
-.meal-modal {
-  width: 360px;
+.meal-detail {
+  margin-top: 22px;
+  background: var(--card);
+  border: 1px solid var(--paper-line-strong);
+  box-shadow: var(--shadow-hard);
+  padding: 22px 26px 26px;
 }
 
-.ingredients-section {
+.meal-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--paper-line);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.meal-detail-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.meal-detail-name-input {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 22px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  padding: 2px 0;
+  border-bottom: 1px solid transparent;
+  width: 100%;
+}
+
+.meal-detail-name-input:focus {
+  border-bottom-color: var(--paper-line-strong);
+}
+
+.meal-detail-close {
+  opacity: 1;
+  font-size: 20px;
+  flex: none;
+}
+
+.meal-detail-body {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 32px;
+}
+
+.meal-detail-ingredients,
+.meal-detail-notes {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.meal-detail-ingredients .ingredient-list {
+  max-height: none;
+  min-height: 60px;
+}
+
+.meal-detail-notes textarea {
+  flex: 1;
+  min-height: 160px;
+  resize: vertical;
+  border: 1px solid var(--paper-line-strong);
+  background: transparent;
+  color: var(--ink);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.meal-detail-notes textarea:focus {
+  outline: none;
+  border-color: var(--brass);
+}
+
+.meal-detail .modal-actions {
+  margin-top: 20px;
+  justify-content: flex-start;
 }
 
 .ingredient-list {
@@ -1140,7 +1223,12 @@ td.is-today {
     min-width: 640px;
   }
 
-  .meal-modal {
-    width: 92vw;
+  .meal-detail {
+    padding: 18px;
+  }
+
+  .meal-detail-body {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 }

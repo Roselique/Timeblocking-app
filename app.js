@@ -850,6 +850,26 @@
     return '€' + (Math.round(n * 100) / 100).toFixed(2);
   }
 
+  // Single click fires onSingle after a short wait; a second click within
+  // that window cancels it and fires onDouble instead (native dblclick).
+  function attachClickAndDblClick(el, onSingle, onDouble) {
+    let timer = null;
+    el.addEventListener('click', () => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        onSingle();
+      }, 280);
+    });
+    el.addEventListener('dblclick', () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      onDouble();
+    });
+  }
+
   const mealWeekPicker = document.getElementById('meal-week-picker');
   mealWeekPicker.value = todayIso();
   const mealWeekLabel = document.getElementById('meal-week-label');
@@ -870,7 +890,7 @@
   function ensureMeal(date, type) {
     let m = getMeal(date, type);
     if (!m) {
-      m = { id: uid(), date, type, name: '', ingredients: [] };
+      m = { id: uid(), date, type, name: '', notes: '', ingredients: [] };
       meals.push(m);
     }
     return m;
@@ -882,7 +902,7 @@
 
   function pruneEmptyMeal(date, type) {
     const m = getMeal(date, type);
-    if (m && !m.name.trim() && m.ingredients.length === 0) {
+    if (m && !m.name.trim() && !(m.notes && m.notes.trim()) && m.ingredients.length === 0) {
       meals = meals.filter((x) => x.id !== m.id);
       persistMeals();
     }
@@ -972,7 +992,11 @@
           cell.appendChild(plus);
         }
 
-        cell.addEventListener('click', () => openMealModal(date, type));
+        attachClickAndDblClick(
+          cell,
+          () => selectMealCell(date, type),
+          () => openMealNameModal(date, type)
+        );
         td.appendChild(cell);
         tr.appendChild(td);
       });
@@ -984,6 +1008,7 @@
   }
 
   function refreshMealWeek() {
+    hideMealDetail();
     weekStart = mondayOf(mealWeekPicker.value);
     renderMealWeekLabel();
     renderMealGrid();
@@ -998,26 +1023,82 @@
   document.getElementById('next-week-btn').addEventListener('click', () => shiftMealWeek(1));
   mealWeekPicker.addEventListener('change', refreshMealWeek);
 
-  // meal modal
+  // quick-name modal (double-click a cell)
 
-  const mealModal = document.getElementById('meal-modal');
-  const mealModalHeading = document.getElementById('meal-modal-heading');
-  const mealNameInput = document.getElementById('meal-name-input');
-  const ingredientListEl = document.getElementById('ingredient-list');
-  const ingredientNameInput = document.getElementById('ingredient-name-input');
-  const ingredientCostInput = document.getElementById('ingredient-cost-input');
-  const addIngredientBtn = document.getElementById('add-ingredient-btn');
-  const mealTotalEl = document.getElementById('meal-total');
-  const mealDeleteBtn = document.getElementById('meal-delete-btn');
-  const mealDoneBtn = document.getElementById('meal-done-btn');
+  const mealNameModal = document.getElementById('meal-name-modal');
+  const mealNameModalHeading = document.getElementById('meal-name-modal-heading');
+  const mealNameQuickInput = document.getElementById('meal-name-quick-input');
 
-  let editingMealDate = null;
-  let editingMealType = null;
+  let quickEditDate = null;
+  let quickEditType = null;
 
-  function renderIngredientList() {
-    ingredientListEl.innerHTML = '';
-    const m = getMeal(editingMealDate, editingMealType);
+  function openMealNameModal(date, type) {
+    quickEditDate = date;
+    quickEditType = type;
+    const m = getMeal(date, type);
+    const dayIdx = weekDays().indexOf(date);
+    mealNameModalHeading.textContent = DAY_LABELS[dayIdx] + ' · ' + MEAL_TYPE_LABELS[type];
+    mealNameQuickInput.value = m ? m.name : '';
+    mealNameModal.style.display = 'flex';
+    mealNameQuickInput.focus();
+    mealNameQuickInput.select();
+  }
+
+  function closeMealNameModal() {
+    mealNameModal.style.display = 'none';
+    pruneEmptyMeal(quickEditDate, quickEditType);
+    quickEditDate = null;
+    quickEditType = null;
+    renderMealGrid();
+    renderShoppingList();
+  }
+
+  mealNameQuickInput.addEventListener('input', () => {
+    const m = ensureMeal(quickEditDate, quickEditType);
+    m.name = mealNameQuickInput.value;
+    persistMeals();
+    if (selectedMealDate === quickEditDate && selectedMealType === quickEditType) {
+      mealDetailNameInput.value = m.name;
+    }
+  });
+
+  mealNameQuickInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') closeMealNameModal();
+  });
+
+  document.getElementById('meal-name-done-btn').addEventListener('click', closeMealNameModal);
+  mealNameModal.addEventListener('click', (e) => {
+    if (e.target === mealNameModal) closeMealNameModal();
+  });
+
+  // inline meal detail panel (single-click a cell): ingredients + notes
+
+  const mealDetailEl = document.getElementById('meal-detail');
+  const mealDetailWhen = document.getElementById('meal-detail-when');
+  const mealDetailNameInput = document.getElementById('meal-detail-name-input');
+  const mealDetailIngredientList = document.getElementById('meal-detail-ingredient-list');
+  const mealDetailIngredientName = document.getElementById('meal-detail-ingredient-name-input');
+  const mealDetailIngredientCost = document.getElementById('meal-detail-ingredient-cost-input');
+  const mealDetailAddIngredientBtn = document.getElementById('meal-detail-add-ingredient-btn');
+  const mealDetailTotalEl = document.getElementById('meal-detail-total');
+  const mealDetailNotesInput = document.getElementById('meal-detail-notes-input');
+  const mealDetailDeleteBtn = document.getElementById('meal-detail-delete-btn');
+  const mealDetailCloseBtn = document.getElementById('meal-detail-close-btn');
+
+  let selectedMealDate = null;
+  let selectedMealType = null;
+
+  function renderMealDetailIngredients() {
+    mealDetailIngredientList.innerHTML = '';
+    const m = getMeal(selectedMealDate, selectedMealType);
     const ingredients = m ? m.ingredients : [];
+
+    if (ingredients.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'empty-hint';
+      li.textContent = 'No ingredients yet.';
+      mealDetailIngredientList.appendChild(li);
+    }
 
     ingredients.forEach((ing) => {
       const li = document.createElement('li');
@@ -1035,92 +1116,114 @@
       delBtn.addEventListener('click', () => {
         m.ingredients = m.ingredients.filter((x) => x.id !== ing.id);
         persistMeals();
-        renderIngredientList();
+        renderMealDetailIngredients();
         renderMealGrid();
+        renderShoppingList();
       });
       li.appendChild(nameSpan);
       li.appendChild(costSpan);
       li.appendChild(delBtn);
-      ingredientListEl.appendChild(li);
+      mealDetailIngredientList.appendChild(li);
     });
 
     const total = m ? mealCost(m) : 0;
-    mealTotalEl.textContent = 'Total: ' + formatCost(total);
+    mealDetailTotalEl.textContent = 'Total: ' + formatCost(total);
   }
 
-  function openMealModal(date, type) {
-    editingMealDate = date;
-    editingMealType = type;
-    const m = getMeal(date, type);
-    const dayIdx = weekDays().indexOf(date);
-    mealModalHeading.textContent = DAY_LABELS[dayIdx] + ' · ' + MEAL_TYPE_LABELS[type];
-    mealNameInput.value = m ? m.name : '';
-    ingredientNameInput.value = '';
-    ingredientCostInput.value = '';
-    renderIngredientList();
-    mealModal.style.display = 'flex';
-    mealNameInput.focus();
+  function renderMealDetail() {
+    const m = getMeal(selectedMealDate, selectedMealType);
+    const dayIdx = weekDays().indexOf(selectedMealDate);
+    mealDetailWhen.textContent = DAY_LABELS[dayIdx] + ' · ' + MEAL_TYPE_LABELS[selectedMealType];
+    mealDetailNameInput.value = m ? m.name : '';
+    mealDetailNotesInput.value = m && m.notes ? m.notes : '';
+    mealDetailIngredientName.value = '';
+    mealDetailIngredientCost.value = '';
+    renderMealDetailIngredients();
   }
 
-  function closeMealModal() {
-    mealModal.style.display = 'none';
-    pruneEmptyMeal(editingMealDate, editingMealType);
-    editingMealDate = null;
-    editingMealType = null;
+  function selectMealCell(date, type) {
+    if (selectedMealDate && (selectedMealDate !== date || selectedMealType !== type)) {
+      pruneEmptyMeal(selectedMealDate, selectedMealType);
+    }
+    selectedMealDate = date;
+    selectedMealType = type;
+    mealDetailEl.hidden = false;
+    renderMealDetail();
+    renderMealGrid();
+    mealDetailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function hideMealDetail() {
+    if (selectedMealDate) {
+      pruneEmptyMeal(selectedMealDate, selectedMealType);
+    }
+    selectedMealDate = null;
+    selectedMealType = null;
+    mealDetailEl.hidden = true;
     renderMealGrid();
     renderShoppingList();
   }
 
-  mealNameInput.addEventListener('input', () => {
-    const m = ensureMeal(editingMealDate, editingMealType);
-    m.name = mealNameInput.value;
+  mealDetailNameInput.addEventListener('input', () => {
+    const m = ensureMeal(selectedMealDate, selectedMealType);
+    m.name = mealDetailNameInput.value;
+    persistMeals();
+    renderMealGrid();
+  });
+
+  mealDetailNotesInput.addEventListener('input', () => {
+    const m = ensureMeal(selectedMealDate, selectedMealType);
+    m.notes = mealDetailNotesInput.value;
     persistMeals();
   });
 
-  function addIngredient() {
-    const name = ingredientNameInput.value.trim();
+  function addDetailIngredient() {
+    const name = mealDetailIngredientName.value.trim();
     if (!name) return;
-    const cost = parseFloat(ingredientCostInput.value);
-    const m = ensureMeal(editingMealDate, editingMealType);
+    const cost = parseFloat(mealDetailIngredientCost.value);
+    const m = ensureMeal(selectedMealDate, selectedMealType);
     m.ingredients.push({ id: uid(), name, cost: isNaN(cost) ? 0 : cost, bought: false });
     persistMeals();
-    ingredientNameInput.value = '';
-    ingredientCostInput.value = '';
-    renderIngredientList();
-    ingredientNameInput.focus();
+    mealDetailIngredientName.value = '';
+    mealDetailIngredientCost.value = '';
+    renderMealDetailIngredients();
+    renderMealGrid();
+    renderShoppingList();
+    mealDetailIngredientName.focus();
   }
 
-  addIngredientBtn.addEventListener('click', addIngredient);
-  ingredientNameInput.addEventListener('keydown', (e) => {
+  mealDetailAddIngredientBtn.addEventListener('click', addDetailIngredient);
+  mealDetailIngredientName.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      addIngredient();
+      addDetailIngredient();
     }
   });
-  ingredientCostInput.addEventListener('keydown', (e) => {
+  mealDetailIngredientCost.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      addIngredient();
+      addDetailIngredient();
     }
   });
 
-  mealDeleteBtn.addEventListener('click', () => {
-    const m = getMeal(editingMealDate, editingMealType);
+  mealDetailDeleteBtn.addEventListener('click', () => {
+    const m = getMeal(selectedMealDate, selectedMealType);
+    if (m && (m.ingredients.length > 0 || (m.notes && m.notes.trim()))) {
+      const ok = window.confirm('Delete this meal and its ingredients?');
+      if (!ok) return;
+    }
     if (m) {
       meals = meals.filter((x) => x.id !== m.id);
       persistMeals();
     }
-    mealModal.style.display = 'none';
-    editingMealDate = null;
-    editingMealType = null;
+    selectedMealDate = null;
+    selectedMealType = null;
+    mealDetailEl.hidden = true;
     renderMealGrid();
     renderShoppingList();
   });
 
-  mealDoneBtn.addEventListener('click', closeMealModal);
-  mealModal.addEventListener('click', (e) => {
-    if (e.target === mealModal) closeMealModal();
-  });
+  mealDetailCloseBtn.addEventListener('click', hideMealDetail);
 
   // shopping list
 

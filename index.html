@@ -136,7 +136,10 @@
                 </div>
               </div>
             </div>
-            <p class="hint">Click a cell to plan a meal and its ingredients.</p>
+            <p class="hint">
+              Click a cell for ingredients and notes below. Double-click to
+              just name the meal.
+            </p>
 
             <div class="meal-grid-wrap">
               <table class="meal-grid" id="meal-grid">
@@ -147,6 +150,71 @@
               </table>
             </div>
             <p class="week-total" id="meal-week-total"></p>
+
+            <section class="meal-detail" id="meal-detail" hidden>
+              <div class="meal-detail-header">
+                <div class="meal-detail-heading">
+                  <span class="field-label" id="meal-detail-when"></span>
+                  <label class="visually-hidden" for="meal-detail-name-input">Meal name</label>
+                  <input
+                    type="text"
+                    id="meal-detail-name-input"
+                    class="meal-detail-name-input"
+                    placeholder="What's cooking?"
+                  />
+                </div>
+                <button
+                  type="button"
+                  class="icon-btn meal-detail-close"
+                  id="meal-detail-close-btn"
+                  aria-label="Close meal details"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div class="meal-detail-body">
+                <div class="meal-detail-ingredients">
+                  <span class="field-label">Ingredients</span>
+                  <ul class="ingredient-list" id="meal-detail-ingredient-list"></ul>
+                  <div class="add-ingredient-row">
+                    <label class="visually-hidden" for="meal-detail-ingredient-name-input"
+                      >Ingredient name</label
+                    >
+                    <input
+                      type="text"
+                      id="meal-detail-ingredient-name-input"
+                      placeholder="Ingredient"
+                    />
+                    <label class="visually-hidden" for="meal-detail-ingredient-cost-input"
+                      >Ingredient cost</label
+                    >
+                    <input
+                      type="number"
+                      id="meal-detail-ingredient-cost-input"
+                      class="cost-input"
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                    />
+                    <button type="button" id="meal-detail-add-ingredient-btn">Add</button>
+                  </div>
+                  <p class="meal-total" id="meal-detail-total"></p>
+                </div>
+
+                <div class="meal-detail-notes">
+                  <label class="field-label" for="meal-detail-notes-input">Notes</label>
+                  <textarea
+                    id="meal-detail-notes-input"
+                    placeholder="Recipe notes, substitutions, prep steps…"
+                  ></textarea>
+                </div>
+              </div>
+
+              <div class="modal-actions">
+                <button class="danger" id="meal-detail-delete-btn">Delete meal</button>
+              </div>
+            </section>
           </div>
 
           <div id="subtab-shopping" class="subtab-panel">
@@ -161,36 +229,14 @@
       </main>
     </div>
 
-    <!-- Meal edit modal -->
-    <div id="meal-modal" class="modal-backdrop" style="display: none">
-      <div class="modal meal-modal">
-        <h3 id="meal-modal-heading"></h3>
-        <label class="visually-hidden" for="meal-name-input">Meal name</label>
-        <input type="text" id="meal-name-input" placeholder="What's cooking?" />
-
-        <div class="ingredients-section">
-          <span class="field-label">Ingredients</span>
-          <ul class="ingredient-list" id="ingredient-list"></ul>
-          <div class="add-ingredient-row">
-            <label class="visually-hidden" for="ingredient-name-input">Ingredient name</label>
-            <input type="text" id="ingredient-name-input" placeholder="Ingredient" />
-            <label class="visually-hidden" for="ingredient-cost-input">Ingredient cost</label>
-            <input
-              type="number"
-              id="ingredient-cost-input"
-              class="cost-input"
-              placeholder="0.00"
-              step="0.01"
-              min="0"
-            />
-            <button type="button" id="add-ingredient-btn">Add</button>
-          </div>
-          <p class="meal-total" id="meal-total"></p>
-        </div>
-
-        <div class="modal-actions">
-          <button class="danger" id="meal-delete-btn">Delete meal</button>
-          <button class="primary" id="meal-done-btn">Done</button>
+    <!-- Meal quick-name modal (double-click a cell) -->
+    <div id="meal-name-modal" class="modal-backdrop" style="display: none">
+      <div class="modal">
+        <h3 id="meal-name-modal-heading"></h3>
+        <label class="visually-hidden" for="meal-name-quick-input">Meal name</label>
+        <input type="text" id="meal-name-quick-input" placeholder="What's cooking?" />
+        <div class="modal-actions modal-actions-end">
+          <button class="primary" id="meal-name-done-btn">Done</button>
         </div>
       </div>
     </div>
