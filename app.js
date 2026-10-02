@@ -52,6 +52,7 @@
 
   let lists = loadState('tb-lists', [{ id: 'default', name: 'My Tasks', tasks: [] }]);
   let blocks = loadState('tb-blocks', []);
+  let meals = loadState('tb-meals', []);
   let activeListId = lists[0] ? lists[0].id : null;
 
   // Assign a color to any list saved before list colors existed.
@@ -89,6 +90,10 @@
     saveState('tb-blocks', blocks);
   }
 
+  function persistMeals() {
+    saveState('tb-meals', meals);
+  }
+
   // ---------- tabs ----------
 
   document.querySelectorAll('.main-tabs .tab-index').forEach((btn) => {
@@ -104,13 +109,13 @@
 
   document.querySelectorAll('.sub-tabs .tab-index').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document
-        .querySelectorAll('.sub-tabs .tab-index')
-        .forEach((b) => b.classList.remove('active'));
-      document.querySelectorAll('.subtab-panel').forEach((p) => p.classList.remove('active'));
+      const section = btn.closest('.tab-panel');
+      section.querySelectorAll('.sub-tabs .tab-index').forEach((b) => b.classList.remove('active'));
+      section.querySelectorAll('.subtab-panel').forEach((p) => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('subtab-' + btn.dataset.subtab).classList.add('active');
       if (btn.dataset.subtab === 'matrix') renderMatrix();
+      if (btn.dataset.subtab === 'shopping') renderShoppingList();
     });
   });
 
@@ -804,10 +809,401 @@
     });
   }
 
+  // =====================================================================
+  // Meals
+  // =====================================================================
+
+  const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'];
+  const MEAL_TYPE_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  function toIsoDate(date) {
+    return (
+      date.getFullYear() +
+      '-' +
+      String(date.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(date.getDate()).padStart(2, '0')
+    );
+  }
+
+  function parseIsoDate(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function addDaysIso(iso, delta) {
+    const date = parseIsoDate(iso);
+    date.setDate(date.getDate() + delta);
+    return toIsoDate(date);
+  }
+
+  function mondayOf(iso) {
+    const date = parseIsoDate(iso);
+    const day = date.getDay(); // 0 = Sun ... 6 = Sat
+    const diff = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + diff);
+    return toIsoDate(date);
+  }
+
+  function formatCost(n) {
+    return '€' + (Math.round(n * 100) / 100).toFixed(2);
+  }
+
+  const mealWeekPicker = document.getElementById('meal-week-picker');
+  mealWeekPicker.value = todayIso();
+  const mealWeekLabel = document.getElementById('meal-week-label');
+  const mealGridHead = document.getElementById('meal-grid-head');
+  const mealGridBody = document.getElementById('meal-grid-body');
+  const mealWeekTotalEl = document.getElementById('meal-week-total');
+
+  let weekStart = mondayOf(mealWeekPicker.value);
+
+  function weekDays() {
+    return Array.from({ length: 7 }, (_, i) => addDaysIso(weekStart, i));
+  }
+
+  function getMeal(date, type) {
+    return meals.find((m) => m.date === date && m.type === type);
+  }
+
+  function ensureMeal(date, type) {
+    let m = getMeal(date, type);
+    if (!m) {
+      m = { id: uid(), date, type, name: '', ingredients: [] };
+      meals.push(m);
+    }
+    return m;
+  }
+
+  function mealCost(m) {
+    return m.ingredients.reduce((sum, ing) => sum + (ing.cost || 0), 0);
+  }
+
+  function pruneEmptyMeal(date, type) {
+    const m = getMeal(date, type);
+    if (m && !m.name.trim() && m.ingredients.length === 0) {
+      meals = meals.filter((x) => x.id !== m.id);
+      persistMeals();
+    }
+  }
+
+  function renderMealWeekLabel() {
+    const days = weekDays();
+    const start = parseIsoDate(days[0]);
+    const end = parseIsoDate(days[6]);
+    const fmt = (d, withYear) =>
+      d.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: withYear ? 'numeric' : undefined,
+      });
+    const sameYear = start.getFullYear() === end.getFullYear();
+    mealWeekLabel.textContent = fmt(start, !sameYear) + ' – ' + fmt(end, true);
+  }
+
+  function renderMealGrid() {
+    const days = weekDays();
+    const today = todayIso();
+
+    mealGridHead.innerHTML = '';
+    const corner = document.createElement('th');
+    corner.scope = 'col';
+    mealGridHead.appendChild(corner);
+    days.forEach((date, i) => {
+      const th = document.createElement('th');
+      th.scope = 'col';
+      th.className = 'meal-day-head' + (date === today ? ' is-today' : '');
+      const dayName = document.createElement('span');
+      dayName.className = 'meal-day-name';
+      dayName.textContent = DAY_LABELS[i];
+      const dayNum = document.createElement('span');
+      dayNum.className = 'meal-day-num';
+      dayNum.textContent = String(parseIsoDate(date).getDate());
+      th.appendChild(dayName);
+      th.appendChild(dayNum);
+      mealGridHead.appendChild(th);
+    });
+
+    mealGridBody.innerHTML = '';
+    let weekTotal = 0;
+
+    MEAL_TYPES.forEach((type) => {
+      const tr = document.createElement('tr');
+      const rowHead = document.createElement('th');
+      rowHead.scope = 'row';
+      rowHead.className = 'meal-type-head';
+      rowHead.textContent = MEAL_TYPE_LABELS[type];
+      tr.appendChild(rowHead);
+
+      days.forEach((date) => {
+        const td = document.createElement('td');
+        td.className = date === today ? 'is-today' : '';
+        const m = getMeal(date, type);
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'meal-cell' + (m && m.name.trim() ? ' is-filled' : '');
+        cell.setAttribute(
+          'aria-label',
+          (m && m.name.trim() ? m.name.trim() : 'Add meal') +
+            ' – ' +
+            DAY_LABELS[days.indexOf(date)] +
+            ' ' +
+            MEAL_TYPE_LABELS[type]
+        );
+
+        if (m && m.name.trim()) {
+          const nameEl = document.createElement('span');
+          nameEl.className = 'meal-cell-name';
+          nameEl.textContent = m.name.trim();
+          cell.appendChild(nameEl);
+          const cost = mealCost(m);
+          weekTotal += cost;
+          if (cost > 0) {
+            const costEl = document.createElement('span');
+            costEl.className = 'meal-cell-cost';
+            costEl.textContent = formatCost(cost);
+            cell.appendChild(costEl);
+          }
+        } else {
+          const plus = document.createElement('span');
+          plus.className = 'meal-cell-plus';
+          plus.textContent = '+';
+          cell.appendChild(plus);
+        }
+
+        cell.addEventListener('click', () => openMealModal(date, type));
+        td.appendChild(cell);
+        tr.appendChild(td);
+      });
+
+      mealGridBody.appendChild(tr);
+    });
+
+    mealWeekTotalEl.textContent = weekTotal > 0 ? 'Week total: ' + formatCost(weekTotal) : '';
+  }
+
+  function refreshMealWeek() {
+    weekStart = mondayOf(mealWeekPicker.value);
+    renderMealWeekLabel();
+    renderMealGrid();
+  }
+
+  function shiftMealWeek(deltaWeeks) {
+    mealWeekPicker.value = addDaysIso(mealWeekPicker.value, deltaWeeks * 7);
+    refreshMealWeek();
+  }
+
+  document.getElementById('prev-week-btn').addEventListener('click', () => shiftMealWeek(-1));
+  document.getElementById('next-week-btn').addEventListener('click', () => shiftMealWeek(1));
+  mealWeekPicker.addEventListener('change', refreshMealWeek);
+
+  // meal modal
+
+  const mealModal = document.getElementById('meal-modal');
+  const mealModalHeading = document.getElementById('meal-modal-heading');
+  const mealNameInput = document.getElementById('meal-name-input');
+  const ingredientListEl = document.getElementById('ingredient-list');
+  const ingredientNameInput = document.getElementById('ingredient-name-input');
+  const ingredientCostInput = document.getElementById('ingredient-cost-input');
+  const addIngredientBtn = document.getElementById('add-ingredient-btn');
+  const mealTotalEl = document.getElementById('meal-total');
+  const mealDeleteBtn = document.getElementById('meal-delete-btn');
+  const mealDoneBtn = document.getElementById('meal-done-btn');
+
+  let editingMealDate = null;
+  let editingMealType = null;
+
+  function renderIngredientList() {
+    ingredientListEl.innerHTML = '';
+    const m = getMeal(editingMealDate, editingMealType);
+    const ingredients = m ? m.ingredients : [];
+
+    ingredients.forEach((ing) => {
+      const li = document.createElement('li');
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'ingredient-name';
+      nameSpan.textContent = ing.name;
+      const costSpan = document.createElement('span');
+      costSpan.className = 'ingredient-cost';
+      costSpan.textContent = formatCost(ing.cost || 0);
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'icon-btn';
+      delBtn.textContent = '×';
+      delBtn.setAttribute('aria-label', 'Remove ' + ing.name);
+      delBtn.addEventListener('click', () => {
+        m.ingredients = m.ingredients.filter((x) => x.id !== ing.id);
+        persistMeals();
+        renderIngredientList();
+        renderMealGrid();
+      });
+      li.appendChild(nameSpan);
+      li.appendChild(costSpan);
+      li.appendChild(delBtn);
+      ingredientListEl.appendChild(li);
+    });
+
+    const total = m ? mealCost(m) : 0;
+    mealTotalEl.textContent = 'Total: ' + formatCost(total);
+  }
+
+  function openMealModal(date, type) {
+    editingMealDate = date;
+    editingMealType = type;
+    const m = getMeal(date, type);
+    const dayIdx = weekDays().indexOf(date);
+    mealModalHeading.textContent = DAY_LABELS[dayIdx] + ' · ' + MEAL_TYPE_LABELS[type];
+    mealNameInput.value = m ? m.name : '';
+    ingredientNameInput.value = '';
+    ingredientCostInput.value = '';
+    renderIngredientList();
+    mealModal.style.display = 'flex';
+    mealNameInput.focus();
+  }
+
+  function closeMealModal() {
+    mealModal.style.display = 'none';
+    pruneEmptyMeal(editingMealDate, editingMealType);
+    editingMealDate = null;
+    editingMealType = null;
+    renderMealGrid();
+    renderShoppingList();
+  }
+
+  mealNameInput.addEventListener('input', () => {
+    const m = ensureMeal(editingMealDate, editingMealType);
+    m.name = mealNameInput.value;
+    persistMeals();
+  });
+
+  function addIngredient() {
+    const name = ingredientNameInput.value.trim();
+    if (!name) return;
+    const cost = parseFloat(ingredientCostInput.value);
+    const m = ensureMeal(editingMealDate, editingMealType);
+    m.ingredients.push({ id: uid(), name, cost: isNaN(cost) ? 0 : cost, bought: false });
+    persistMeals();
+    ingredientNameInput.value = '';
+    ingredientCostInput.value = '';
+    renderIngredientList();
+    ingredientNameInput.focus();
+  }
+
+  addIngredientBtn.addEventListener('click', addIngredient);
+  ingredientNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addIngredient();
+    }
+  });
+  ingredientCostInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addIngredient();
+    }
+  });
+
+  mealDeleteBtn.addEventListener('click', () => {
+    const m = getMeal(editingMealDate, editingMealType);
+    if (m) {
+      meals = meals.filter((x) => x.id !== m.id);
+      persistMeals();
+    }
+    mealModal.style.display = 'none';
+    editingMealDate = null;
+    editingMealType = null;
+    renderMealGrid();
+    renderShoppingList();
+  });
+
+  mealDoneBtn.addEventListener('click', closeMealModal);
+  mealModal.addEventListener('click', (e) => {
+    if (e.target === mealModal) closeMealModal();
+  });
+
+  // shopping list
+
+  const shoppingListEl = document.getElementById('shopping-list');
+  const shoppingEmptyHint = document.getElementById('shopping-empty-hint');
+  const shoppingTotalEl = document.getElementById('shopping-total');
+
+  function weekIngredientGroups() {
+    const days = weekDays();
+    const map = new Map();
+    meals
+      .filter((m) => days.includes(m.date))
+      .forEach((m) => {
+        m.ingredients.forEach((ing) => {
+          const key = ing.name.trim().toLowerCase();
+          if (!key) return;
+          if (!map.has(key)) map.set(key, { name: ing.name.trim(), totalCost: 0, items: [] });
+          const g = map.get(key);
+          g.totalCost += ing.cost || 0;
+          g.items.push({ mealId: m.id, ingredientId: ing.id, bought: !!ing.bought });
+        });
+      });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function renderShoppingList() {
+    shoppingListEl.innerHTML = '';
+    const groups = weekIngredientGroups();
+    shoppingEmptyHint.style.display = groups.length === 0 ? 'block' : 'none';
+
+    let total = 0;
+    groups.forEach((g) => {
+      total += g.totalCost;
+      const li = document.createElement('li');
+      const allBought = g.items.every((it) => it.bought);
+      li.className = allBought ? 'done' : '';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = allBought;
+      cb.setAttribute('aria-label', 'Mark "' + g.name + '" bought');
+      cb.addEventListener('change', () => {
+        const nextState = cb.checked;
+        g.items.forEach((it) => {
+          const m = meals.find((x) => x.id === it.mealId);
+          const ing = m && m.ingredients.find((x) => x.id === it.ingredientId);
+          if (ing) ing.bought = nextState;
+        });
+        persistMeals();
+        renderShoppingList();
+      });
+      li.appendChild(cb);
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'task-text';
+      nameSpan.textContent = g.name;
+      if (g.items.length > 1) {
+        const countSpan = document.createElement('span');
+        countSpan.className = 'ingredient-count';
+        countSpan.textContent = '×' + g.items.length;
+        nameSpan.appendChild(document.createTextNode(' '));
+        nameSpan.appendChild(countSpan);
+      }
+      li.appendChild(nameSpan);
+
+      const costSpan = document.createElement('span');
+      costSpan.className = 'ingredient-cost';
+      costSpan.textContent = formatCost(g.totalCost);
+      li.appendChild(costSpan);
+
+      shoppingListEl.appendChild(li);
+    });
+
+    shoppingTotalEl.textContent = groups.length > 0 ? 'Total: ' + formatCost(total) : '';
+  }
+
   // ---------- init ----------
 
   renderDateline();
   renderGrid();
   renderLists();
   renderMatrix();
+  renderMealWeekLabel();
+  renderMealGrid();
+  renderShoppingList();
 })();

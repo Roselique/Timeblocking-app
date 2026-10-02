@@ -21,6 +21,7 @@
         <nav class="main-tabs" aria-label="Sections">
           <button class="tab-index active" data-tab="timeblock">Today</button>
           <button class="tab-index" data-tab="lists">Lists</button>
+          <button class="tab-index" data-tab="meals">Meals</button>
         </nav>
       </header>
 
@@ -113,7 +114,85 @@
             </div>
           </div>
         </section>
+
+        <!-- Meals tab -->
+        <section id="tab-meals" class="tab-panel">
+          <nav class="sub-tabs" aria-label="Meals views">
+            <button class="tab-index active" data-subtab="plan">Weekly plan</button>
+            <button class="tab-index" data-subtab="shopping">Shopping list</button>
+          </nav>
+
+          <div id="subtab-plan" class="subtab-panel active">
+            <div class="dateline-row">
+              <h2 class="dateline" id="meal-week-label">This week</h2>
+              <div class="dateline-actions">
+                <div class="day-nav">
+                  <button type="button" id="prev-week-btn" aria-label="Previous week">‹</button>
+                  <label class="change-day">
+                    change week
+                    <input type="date" id="meal-week-picker" />
+                  </label>
+                  <button type="button" id="next-week-btn" aria-label="Next week">›</button>
+                </div>
+              </div>
+            </div>
+            <p class="hint">Click a cell to plan a meal and its ingredients.</p>
+
+            <div class="meal-grid-wrap">
+              <table class="meal-grid" id="meal-grid">
+                <thead>
+                  <tr id="meal-grid-head"></tr>
+                </thead>
+                <tbody id="meal-grid-body"></tbody>
+              </table>
+            </div>
+            <p class="week-total" id="meal-week-total"></p>
+          </div>
+
+          <div id="subtab-shopping" class="subtab-panel">
+            <div id="shopping-empty-hint" class="empty-hint" style="display: none">
+              No ingredients yet. Add some from a meal in the weekly plan and
+              they’ll show up here, merged into one list.
+            </div>
+            <ul class="shopping-list" id="shopping-list"></ul>
+            <p class="week-total" id="shopping-total"></p>
+          </div>
+        </section>
       </main>
+    </div>
+
+    <!-- Meal edit modal -->
+    <div id="meal-modal" class="modal-backdrop" style="display: none">
+      <div class="modal meal-modal">
+        <h3 id="meal-modal-heading"></h3>
+        <label class="visually-hidden" for="meal-name-input">Meal name</label>
+        <input type="text" id="meal-name-input" placeholder="What's cooking?" />
+
+        <div class="ingredients-section">
+          <span class="field-label">Ingredients</span>
+          <ul class="ingredient-list" id="ingredient-list"></ul>
+          <div class="add-ingredient-row">
+            <label class="visually-hidden" for="ingredient-name-input">Ingredient name</label>
+            <input type="text" id="ingredient-name-input" placeholder="Ingredient" />
+            <label class="visually-hidden" for="ingredient-cost-input">Ingredient cost</label>
+            <input
+              type="number"
+              id="ingredient-cost-input"
+              class="cost-input"
+              placeholder="0.00"
+              step="0.01"
+              min="0"
+            />
+            <button type="button" id="add-ingredient-btn">Add</button>
+          </div>
+          <p class="meal-total" id="meal-total"></p>
+        </div>
+
+        <div class="modal-actions">
+          <button class="danger" id="meal-delete-btn">Delete meal</button>
+          <button class="primary" id="meal-done-btn">Done</button>
+        </div>
+      </div>
     </div>
 
     <!-- Time block edit modal -->
