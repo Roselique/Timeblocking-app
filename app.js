@@ -218,6 +218,110 @@
     return blocks.filter((b) => occursOn(b, datePicker.value));
   }
 
+  // Wires up a reusable "Repeat" control set (select + weekly interval/days +
+  // until) against whatever object getObj() currently returns. Used for both
+  // time blocks and meals, which share the same { date, repeat } shape.
+  function createRepeatController(els, getObj, onChange) {
+    const WEEKDAY_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+    const dayButtons = [];
+
+    function ensureRepeat(obj) {
+      if (!obj.repeat) {
+        obj.repeat = {
+          freq: 'weekly',
+          interval: 1,
+          days: [parseIsoDate(obj.date).getDay()],
+          until: null,
+        };
+      }
+      return obj.repeat;
+    }
+
+    function updateDayButtonsUI(selectedDays) {
+      dayButtons.forEach((btn) => {
+        const isSet = selectedDays.includes(Number(btn.dataset.day));
+        btn.classList.toggle('is-set', isSet);
+        btn.setAttribute('aria-pressed', String(isSet));
+      });
+    }
+
+    WEEKDAY_SHORT.forEach((label, i) => {
+      const dayBtn = document.createElement('button');
+      dayBtn.type = 'button';
+      dayBtn.className = 'day-toggle';
+      dayBtn.textContent = label;
+      dayBtn.dataset.day = String(i);
+      dayBtn.setAttribute('aria-pressed', 'false');
+      dayBtn.addEventListener('click', () => {
+        const obj = getObj();
+        if (!obj) return;
+        const rep = ensureRepeat(obj);
+        const idx = rep.days.indexOf(i);
+        if (idx !== -1) {
+          if (rep.days.length === 1) return; // keep at least one day selected
+          rep.days.splice(idx, 1);
+        } else {
+          rep.days.push(i);
+        }
+        rep.days.sort();
+        onChange();
+        updateDayButtonsUI(rep.days);
+      });
+      els.daysEl.appendChild(dayBtn);
+      dayButtons.push(dayBtn);
+    });
+
+    function render(obj) {
+      const rep = obj ? obj.repeat : null;
+      els.selectEl.value = rep ? rep.freq : 'none';
+      els.optionsEl.hidden = !rep;
+      const isWeekly = !!rep && rep.freq === 'weekly';
+      els.intervalRowEl.hidden = !isWeekly;
+      els.daysEl.hidden = !isWeekly;
+      els.intervalInputEl.value = rep ? rep.interval || 1 : 1;
+      els.untilEl.value = rep && rep.until ? rep.until : '';
+      updateDayButtonsUI(rep ? rep.days || [] : []);
+    }
+
+    els.selectEl.addEventListener('change', () => {
+      const obj = getObj();
+      if (!obj) return;
+      if (els.selectEl.value === 'none') {
+        obj.repeat = null;
+      } else {
+        ensureRepeat(obj).freq = els.selectEl.value;
+      }
+      onChange();
+      render(obj);
+    });
+
+    els.intervalInputEl.addEventListener('input', () => {
+      const obj = getObj();
+      if (!obj || !obj.repeat) return;
+      const n = parseInt(els.intervalInputEl.value, 10);
+      obj.repeat.interval = Number.isFinite(n) && n >= 1 ? n : 1;
+      onChange();
+    });
+
+    els.untilEl.addEventListener('change', () => {
+      const obj = getObj();
+      if (!obj || !obj.repeat) return;
+      obj.repeat.until = els.untilEl.value || null;
+      onChange();
+    });
+
+    els.untilClearEl.addEventListener('click', () => {
+      els.untilEl.value = '';
+      const obj = getObj();
+      if (obj && obj.repeat) {
+        obj.repeat.until = null;
+        onChange();
+      }
+    });
+
+    return { render };
+  }
+
   function isRangeFree(startMin, endMin, excludeId) {
     return !dayBlocks().some(
       (b) => b.id !== excludeId && startMin < b.endMin && endMin > b.startMin
@@ -286,7 +390,14 @@
 
       const title = document.createElement('span');
       title.className = 'time-block-title';
-      title.textContent = b.title || 'Untitled';
+      if (b.repeat) {
+        const repeatIcon = document.createElement('span');
+        repeatIcon.className = 'repeat-icon';
+        repeatIcon.textContent = '↻';
+        repeatIcon.setAttribute('aria-hidden', 'true');
+        title.appendChild(repeatIcon);
+      }
+      title.appendChild(document.createTextNode(b.title || 'Untitled'));
 
       el.appendChild(time);
       el.appendChild(title);
@@ -394,102 +505,24 @@
   const blockRepeatUntilClear = document.getElementById('block-repeat-until-clear');
   let editingBlockId = null;
 
-  const WEEKDAY_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-
-  WEEKDAY_SHORT.forEach((label, i) => {
-    const dayBtn = document.createElement('button');
-    dayBtn.type = 'button';
-    dayBtn.className = 'day-toggle';
-    dayBtn.textContent = label;
-    dayBtn.dataset.day = String(i);
-    dayBtn.setAttribute('aria-pressed', 'false');
-    dayBtn.addEventListener('click', () => {
+  const blockRepeatController = createRepeatController(
+    {
+      selectEl: blockRepeatSelect,
+      optionsEl: blockRepeatOptions,
+      intervalRowEl: blockRepeatIntervalRow,
+      intervalInputEl: blockRepeatInterval,
+      daysEl: blockRepeatDaysEl,
+      untilEl: blockRepeatUntil,
+      untilClearEl: blockRepeatUntilClear,
+    },
+    () => blocks.find((x) => x.id === editingBlockId),
+    () => {
+      persistBlocks();
+      renderGrid();
       const b = blocks.find((x) => x.id === editingBlockId);
-      if (!b) return;
-      const rep = ensureRepeat(b);
-      const day = i;
-      const idx = rep.days.indexOf(day);
-      if (idx !== -1) {
-        if (rep.days.length === 1) return; // keep at least one day selected
-        rep.days.splice(idx, 1);
-      } else {
-        rep.days.push(day);
-      }
-      rep.days.sort();
-      persistBlocks();
-      updateDayButtonsUI(rep.days);
-      renderGrid();
-    });
-    blockRepeatDaysEl.appendChild(dayBtn);
-  });
-
-  function ensureRepeat(b) {
-    if (!b.repeat) {
-      b.repeat = { freq: 'weekly', interval: 1, days: [parseIsoDate(b.date).getDay()], until: null };
+      blockDeleteBtn.textContent = b && b.repeat ? 'Delete series' : 'Delete';
     }
-    return b.repeat;
-  }
-
-  function updateDayButtonsUI(selectedDays) {
-    Array.from(blockRepeatDaysEl.children).forEach((btn) => {
-      const isSet = selectedDays.includes(Number(btn.dataset.day));
-      btn.classList.toggle('is-set', isSet);
-      btn.setAttribute('aria-pressed', String(isSet));
-    });
-  }
-
-  function updateRepeatUI(b) {
-    const rep = b.repeat;
-    blockRepeatSelect.value = rep ? rep.freq : 'none';
-    blockRepeatOptions.hidden = !rep;
-    const isWeekly = !!rep && rep.freq === 'weekly';
-    blockRepeatIntervalRow.hidden = !isWeekly;
-    blockRepeatDaysEl.hidden = !isWeekly;
-    blockRepeatInterval.value = rep ? rep.interval || 1 : 1;
-    blockRepeatUntil.value = rep && rep.until ? rep.until : '';
-    updateDayButtonsUI(rep ? rep.days || [] : []);
-    blockDeleteBtn.textContent = rep ? 'Delete series' : 'Delete';
-  }
-
-  blockRepeatSelect.addEventListener('change', () => {
-    const b = blocks.find((x) => x.id === editingBlockId);
-    if (!b) return;
-    if (blockRepeatSelect.value === 'none') {
-      b.repeat = null;
-    } else {
-      ensureRepeat(b).freq = blockRepeatSelect.value;
-    }
-    persistBlocks();
-    updateRepeatUI(b);
-    renderGrid();
-  });
-
-  blockRepeatInterval.addEventListener('input', () => {
-    const b = blocks.find((x) => x.id === editingBlockId);
-    if (!b || !b.repeat) return;
-    const n = parseInt(blockRepeatInterval.value, 10);
-    b.repeat.interval = Number.isFinite(n) && n >= 1 ? n : 1;
-    persistBlocks();
-    renderGrid();
-  });
-
-  blockRepeatUntil.addEventListener('change', () => {
-    const b = blocks.find((x) => x.id === editingBlockId);
-    if (!b || !b.repeat) return;
-    b.repeat.until = blockRepeatUntil.value || null;
-    persistBlocks();
-    renderGrid();
-  });
-
-  blockRepeatUntilClear.addEventListener('click', () => {
-    blockRepeatUntil.value = '';
-    const b = blocks.find((x) => x.id === editingBlockId);
-    if (b && b.repeat) {
-      b.repeat.until = null;
-      persistBlocks();
-      renderGrid();
-    }
-  });
+  );
 
   COLORS.forEach((c, i) => {
     const swatch = document.createElement('button');
@@ -536,7 +569,8 @@
     showTimeError('');
     blockTitleInput.value = b.title;
     updateColorSelection(b.color);
-    updateRepeatUI(b);
+    blockRepeatController.render(b);
+    blockDeleteBtn.textContent = b.repeat ? 'Delete series' : 'Delete';
     blockModal.style.display = 'flex';
     blockTitleInput.focus();
   }
@@ -1032,14 +1066,17 @@
     return Array.from({ length: 7 }, (_, i) => addDaysIso(weekStart, i));
   }
 
+  // Finds whichever meal rule (one-off or repeating) has an occurrence on
+  // this date for this meal type. occursOn() only needs .date/.repeat, so
+  // the same function used for time blocks works here unchanged.
   function getMeal(date, type) {
-    return meals.find((m) => m.date === date && m.type === type);
+    return meals.find((m) => m.type === type && occursOn(m, date));
   }
 
   function ensureMeal(date, type) {
     let m = getMeal(date, type);
     if (!m) {
-      m = { id: uid(), date, type, name: '', notes: '', ingredients: [] };
+      m = { id: uid(), date, type, name: '', notes: '', ingredients: [], repeat: null };
       meals.push(m);
     }
     return m;
@@ -1124,7 +1161,14 @@
         if (m && m.name.trim()) {
           const nameEl = document.createElement('span');
           nameEl.className = 'meal-cell-name';
-          nameEl.textContent = m.name.trim();
+          if (m.repeat) {
+            const repeatIcon = document.createElement('span');
+            repeatIcon.className = 'repeat-icon';
+            repeatIcon.textContent = '↻';
+            repeatIcon.setAttribute('aria-hidden', 'true');
+            nameEl.appendChild(repeatIcon);
+          }
+          nameEl.appendChild(document.createTextNode(m.name.trim()));
           cell.appendChild(nameEl);
           const cost = mealCost(m);
           weekTotal += cost;
@@ -1237,6 +1281,26 @@
   let selectedMealDate = null;
   let selectedMealType = null;
 
+  const mealRepeatController = createRepeatController(
+    {
+      selectEl: document.getElementById('meal-repeat-select'),
+      optionsEl: document.getElementById('meal-repeat-options'),
+      intervalRowEl: document.getElementById('meal-repeat-interval-row'),
+      intervalInputEl: document.getElementById('meal-repeat-interval'),
+      daysEl: document.getElementById('meal-repeat-days'),
+      untilEl: document.getElementById('meal-repeat-until'),
+      untilClearEl: document.getElementById('meal-repeat-until-clear'),
+    },
+    () => ensureMeal(selectedMealDate, selectedMealType),
+    () => {
+      persistMeals();
+      renderMealGrid();
+      renderShoppingList();
+      const m = getMeal(selectedMealDate, selectedMealType);
+      mealDetailDeleteBtn.textContent = m && m.repeat ? 'Delete series' : 'Delete meal';
+    }
+  );
+
   function renderMealDetailIngredients() {
     mealDetailIngredientList.innerHTML = '';
     const m = getMeal(selectedMealDate, selectedMealType);
@@ -1288,6 +1352,8 @@
     mealDetailIngredientName.value = '';
     mealDetailIngredientCost.value = '';
     renderMealDetailIngredients();
+    mealRepeatController.render(m);
+    mealDetailDeleteBtn.textContent = m && m.repeat ? 'Delete series' : 'Delete meal';
   }
 
   function selectMealCell(date, type) {
@@ -1357,7 +1423,10 @@
 
   mealDetailDeleteBtn.addEventListener('click', () => {
     const m = getMeal(selectedMealDate, selectedMealType);
-    if (m && (m.ingredients.length > 0 || (m.notes && m.notes.trim()))) {
+    if (m && m.repeat) {
+      const ok = window.confirm('Delete this entire repeating series?');
+      if (!ok) return;
+    } else if (m && (m.ingredients.length > 0 || (m.notes && m.notes.trim()))) {
       const ok = window.confirm('Delete this meal and its ingredients?');
       if (!ok) return;
     }
@@ -1383,9 +1452,14 @@
   function weekIngredientGroups() {
     const days = weekDays();
     const map = new Map();
-    meals
-      .filter((m) => days.includes(m.date))
-      .forEach((m) => {
+    // Walk every (date, type) slot in the visible week rather than the raw
+    // meals array: a repeating meal's ingredients count once per occurrence
+    // (e.g. a daily breakfast needs its milk bought 7 times that week), and
+    // its one shared ingredient record may surface at several slots.
+    days.forEach((date) => {
+      MEAL_TYPES.forEach((type) => {
+        const m = getMeal(date, type);
+        if (!m) return;
         m.ingredients.forEach((ing) => {
           const key = ing.name.trim().toLowerCase();
           if (!key) return;
@@ -1395,6 +1469,7 @@
           g.items.push({ mealId: m.id, ingredientId: ing.id, bought: !!ing.bought });
         });
       });
+    });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }
 

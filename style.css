@@ -380,6 +380,13 @@ input,
   text-overflow: ellipsis;
 }
 
+.repeat-icon {
+  display: inline-block;
+  margin-right: 3px;
+  opacity: 0.6;
+  font-weight: 400;
+}
+
 /* ---------- modal ---------- */
 
 .modal-backdrop {
@@ -1176,6 +1183,12 @@ td.is-today {
 
 .repeat-until-clear {
   opacity: 1;
+}
+
+.meal-detail .repeat-section {
+  margin-bottom: 18px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--paper-line);
 }
 
 .meal-detail-body {
