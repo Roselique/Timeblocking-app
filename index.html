@@ -259,6 +259,55 @@
         <label class="visually-hidden" for="block-title-input">Block title</label>
         <input type="text" id="block-title-input" placeholder="What are you working on?" />
         <div class="color-row" id="block-color-row" role="group" aria-label="Block color"></div>
+
+        <div class="repeat-section">
+          <div class="repeat-row">
+            <label class="field-label" for="block-repeat-select">Repeat</label>
+            <select id="block-repeat-select">
+              <option value="none">Does not repeat</option>
+              <option value="daily">Every day</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Every month</option>
+            </select>
+          </div>
+
+          <div class="repeat-options" id="block-repeat-options" hidden>
+            <div class="repeat-interval-row" id="block-repeat-interval-row">
+              <span class="repeat-text">Every</span>
+              <label class="visually-hidden" for="block-repeat-interval">Number of weeks</label>
+              <input
+                type="number"
+                id="block-repeat-interval"
+                class="repeat-interval-input"
+                min="1"
+                max="52"
+                value="1"
+              />
+              <span class="repeat-text">week(s) on</span>
+            </div>
+            <div
+              class="repeat-days"
+              id="block-repeat-days"
+              role="group"
+              aria-label="Repeat on these days"
+            ></div>
+
+            <div class="repeat-until-row">
+              <label class="field-label" for="block-repeat-until">Ends</label>
+              <input type="date" id="block-repeat-until" />
+              <button
+                type="button"
+                id="block-repeat-until-clear"
+                class="icon-btn repeat-until-clear"
+                aria-label="Clear end date (repeat never ends)"
+                title="Never"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="modal-actions">
           <button class="danger" id="block-delete-btn">Delete</button>
           <button class="primary" id="block-done-btn">Done</button>

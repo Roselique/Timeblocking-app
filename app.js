@@ -177,8 +177,45 @@
     return DAY_START + slot * SLOT_MINUTES;
   }
 
+  // Whether a (possibly repeating) block has an occurrence on the given date.
+  // parseIsoDate/mondayOf are defined later in the file but hoisted (function
+  // declarations), so they're safe to call here.
+  function occursOn(block, dateIso) {
+    if (dateIso < block.date) return false;
+    if (!block.repeat) return dateIso === block.date;
+
+    const rep = block.repeat;
+    if (rep.until && dateIso > rep.until) return false;
+
+    if (rep.freq === 'daily') return true;
+
+    if (rep.freq === 'weekly') {
+      const days = rep.days && rep.days.length ? rep.days : [parseIsoDate(block.date).getDay()];
+      if (!days.includes(parseIsoDate(dateIso).getDay())) return false;
+      const anchorMonday = parseIsoDate(mondayOf(block.date)).getTime();
+      const targetMonday = parseIsoDate(mondayOf(dateIso)).getTime();
+      const weekDiff = Math.round((targetMonday - anchorMonday) / (7 * 24 * 60 * 60 * 1000));
+      const interval = Math.max(1, rep.interval || 1);
+      return weekDiff >= 0 && weekDiff % interval === 0;
+    }
+
+    if (rep.freq === 'monthly') {
+      const anchor = parseIsoDate(block.date);
+      const target = parseIsoDate(dateIso);
+      const lastDayOfTargetMonth = new Date(
+        target.getFullYear(),
+        target.getMonth() + 1,
+        0
+      ).getDate();
+      const expectedDay = Math.min(anchor.getDate(), lastDayOfTargetMonth);
+      return target.getDate() === expectedDay;
+    }
+
+    return false;
+  }
+
   function dayBlocks() {
-    return blocks.filter((b) => b.date === datePicker.value);
+    return blocks.filter((b) => occursOn(b, datePicker.value));
   }
 
   function isRangeFree(startMin, endMin, excludeId) {
@@ -303,6 +340,7 @@
       endMin: minutesForSlot(endSlot),
       title: '',
       color,
+      repeat: null,
     };
     blocks.push(block);
     persistBlocks();
@@ -347,7 +385,111 @@
   const blockDeleteBtn = document.getElementById('block-delete-btn');
   const blockDoneBtn = document.getElementById('block-done-btn');
   const newBlockBtn = document.getElementById('new-block-btn');
+  const blockRepeatSelect = document.getElementById('block-repeat-select');
+  const blockRepeatOptions = document.getElementById('block-repeat-options');
+  const blockRepeatIntervalRow = document.getElementById('block-repeat-interval-row');
+  const blockRepeatInterval = document.getElementById('block-repeat-interval');
+  const blockRepeatDaysEl = document.getElementById('block-repeat-days');
+  const blockRepeatUntil = document.getElementById('block-repeat-until');
+  const blockRepeatUntilClear = document.getElementById('block-repeat-until-clear');
   let editingBlockId = null;
+
+  const WEEKDAY_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+  WEEKDAY_SHORT.forEach((label, i) => {
+    const dayBtn = document.createElement('button');
+    dayBtn.type = 'button';
+    dayBtn.className = 'day-toggle';
+    dayBtn.textContent = label;
+    dayBtn.dataset.day = String(i);
+    dayBtn.setAttribute('aria-pressed', 'false');
+    dayBtn.addEventListener('click', () => {
+      const b = blocks.find((x) => x.id === editingBlockId);
+      if (!b) return;
+      const rep = ensureRepeat(b);
+      const day = i;
+      const idx = rep.days.indexOf(day);
+      if (idx !== -1) {
+        if (rep.days.length === 1) return; // keep at least one day selected
+        rep.days.splice(idx, 1);
+      } else {
+        rep.days.push(day);
+      }
+      rep.days.sort();
+      persistBlocks();
+      updateDayButtonsUI(rep.days);
+      renderGrid();
+    });
+    blockRepeatDaysEl.appendChild(dayBtn);
+  });
+
+  function ensureRepeat(b) {
+    if (!b.repeat) {
+      b.repeat = { freq: 'weekly', interval: 1, days: [parseIsoDate(b.date).getDay()], until: null };
+    }
+    return b.repeat;
+  }
+
+  function updateDayButtonsUI(selectedDays) {
+    Array.from(blockRepeatDaysEl.children).forEach((btn) => {
+      const isSet = selectedDays.includes(Number(btn.dataset.day));
+      btn.classList.toggle('is-set', isSet);
+      btn.setAttribute('aria-pressed', String(isSet));
+    });
+  }
+
+  function updateRepeatUI(b) {
+    const rep = b.repeat;
+    blockRepeatSelect.value = rep ? rep.freq : 'none';
+    blockRepeatOptions.hidden = !rep;
+    const isWeekly = !!rep && rep.freq === 'weekly';
+    blockRepeatIntervalRow.hidden = !isWeekly;
+    blockRepeatDaysEl.hidden = !isWeekly;
+    blockRepeatInterval.value = rep ? rep.interval || 1 : 1;
+    blockRepeatUntil.value = rep && rep.until ? rep.until : '';
+    updateDayButtonsUI(rep ? rep.days || [] : []);
+    blockDeleteBtn.textContent = rep ? 'Delete series' : 'Delete';
+  }
+
+  blockRepeatSelect.addEventListener('change', () => {
+    const b = blocks.find((x) => x.id === editingBlockId);
+    if (!b) return;
+    if (blockRepeatSelect.value === 'none') {
+      b.repeat = null;
+    } else {
+      ensureRepeat(b).freq = blockRepeatSelect.value;
+    }
+    persistBlocks();
+    updateRepeatUI(b);
+    renderGrid();
+  });
+
+  blockRepeatInterval.addEventListener('input', () => {
+    const b = blocks.find((x) => x.id === editingBlockId);
+    if (!b || !b.repeat) return;
+    const n = parseInt(blockRepeatInterval.value, 10);
+    b.repeat.interval = Number.isFinite(n) && n >= 1 ? n : 1;
+    persistBlocks();
+    renderGrid();
+  });
+
+  blockRepeatUntil.addEventListener('change', () => {
+    const b = blocks.find((x) => x.id === editingBlockId);
+    if (!b || !b.repeat) return;
+    b.repeat.until = blockRepeatUntil.value || null;
+    persistBlocks();
+    renderGrid();
+  });
+
+  blockRepeatUntilClear.addEventListener('click', () => {
+    blockRepeatUntil.value = '';
+    const b = blocks.find((x) => x.id === editingBlockId);
+    if (b && b.repeat) {
+      b.repeat.until = null;
+      persistBlocks();
+      renderGrid();
+    }
+  });
 
   COLORS.forEach((c, i) => {
     const swatch = document.createElement('button');
@@ -394,6 +536,7 @@
     showTimeError('');
     blockTitleInput.value = b.title;
     updateColorSelection(b.color);
+    updateRepeatUI(b);
     blockModal.style.display = 'flex';
     blockTitleInput.focus();
   }
@@ -448,6 +591,7 @@
       endMin: range.endMin,
       title: '',
       color,
+      repeat: null,
     };
     blocks.push(block);
     persistBlocks();
@@ -468,6 +612,11 @@
   });
 
   blockDeleteBtn.addEventListener('click', () => {
+    const b = blocks.find((x) => x.id === editingBlockId);
+    if (b && b.repeat) {
+      const ok = window.confirm('Delete this entire repeating series?');
+      if (!ok) return;
+    }
     blocks = blocks.filter((x) => x.id !== editingBlockId);
     persistBlocks();
     closeBlockModal();
